@@ -9,6 +9,17 @@ from lstm import *
 
 class SentEncoderLayer(object):
     def __init__(self, cell, rng, layer_id, shape, X, mask, is_train = 1, batch_size = 1, p = 0.5):
+        """
+        :param cell:
+        :param rng:
+        :param layer_id:
+        :param shape:
+        :param X: input X tensor from sentence rnn,shape=(sent_max_len,batch_size, hiddendim_of_sent_rnn)
+        :param mask: sentence mask, shape=(max_sent_len,)
+        :param is_train:
+        :param batch_size:
+        :param p: dropout prob
+        """
         prefix = "SentEncoder_"
         self.in_size, self.out_size = shape
         
@@ -21,6 +32,8 @@ class SentEncoderLayer(object):
         sent_X, updates = theano.scan(lambda i: code(i), sequences=[T.arange(mask.shape[1])])
         '''
         sent_X = T.reshape(X[X.shape[0] - 1, :], (batch_size, self.in_size))
+        # TODO sent representation can be pooling the over whole sentence
+
         mask = T.reshape(T.ones_like(sent_X)[:,0], (batch_size, 1))
 
         if cell == "gru":

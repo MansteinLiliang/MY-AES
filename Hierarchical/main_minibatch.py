@@ -1,15 +1,11 @@
 #pylint: skip-file
 # -*- coding: utf-8 -*-
 import time
-import sys
-import numpy as np
-import theano
-import theano.tensor as T
-from utils_pg import *
-from rnn import *
-import data
 
-# use_gpu(-1) # -1:cpu; 0,1,2,..: gpu
+import data
+from rnn import *
+
+use_gpu(-1) # -1:cpu; 0,1,2,..: gpu
 
 e = 0.01
 lr = 0.1
