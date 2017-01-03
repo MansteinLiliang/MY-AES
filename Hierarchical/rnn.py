@@ -1,4 +1,5 @@
 #pylint: skip-file
+from __future__ import absolute_import
 import numpy as np
 import theano
 import theano.tensor as T
@@ -11,6 +12,7 @@ from sent_decoder import *
 from attention import *
 from word_decoder import *
 from updates import *
+from mylayers.encoding_layer import SentEncoderLayer, DocEncoderLayer
 
 class RNN(object):
     def __init__(self, in_size, out_size, hidden_size,

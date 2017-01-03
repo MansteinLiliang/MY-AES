@@ -1,2 +1,7 @@
 from __future__ import absolute_import
+
 from . import gru_layer
+from . import lstm_layer
+from . import gating_layer
+from . import encoding_layer
+from . import syntax_attention

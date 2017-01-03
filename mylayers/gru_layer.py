@@ -1,12 +1,5 @@
 # pylint: skip-file
-import numpy as np
-import theano
-import theano.tensor as T
-from .. import utils
-init_weights = utils.init_weights
-init_bias = utils.init_bias
-floatX = utils.floatX
-import keras
+from mylayers.utils import *
 
 
 class GRULayer(object):
@@ -41,13 +34,13 @@ class GRULayer(object):
 
             h = h * m[:, None] + (1 - m[:, None]) * pre_h
 
-            h = T.reshape(h, (1, batch_size * self.out_size))
+            # h = T.reshape(h, (batch_size * self.out_size))
             return h
 
         h, updates = theano.scan(_active_mask, sequences=[self.X, self.M],
-                                 outputs_info=[T.alloc(floatX(0.), 1, batch_size * self.out_size)])
+                                 outputs_info=[T.alloc(floatX(0.), batch_size, self.out_size)])
         # dic to matrix
-        h = T.reshape(h, (self.X.shape[0], batch_size * self.out_size))
+        h = T.reshape(h, (self.X.shape[0], batch_size, self.out_size))
 
         # TODO their is no dropout, for the random_stream not figure out
         # dropout
@@ -56,7 +49,8 @@ class GRULayer(object):
         #     drop_mask = srng.binomial(n=1, p=1 - p, size=h.shape, dtype=theano.config.floatX)
         #     self.activation = T.switch(T.eq(is_train, 1), h * drop_mask, h * (1 - p))
         # else:
-        self.activation = T.switch(T.eq(is_train, 1), h, h)
+        # self.activation = T.switch(T.eq(is_train, 1), h, h)
+        self.activation = h
 
         self.params = [self.W_xr, self.W_hr, self.b_r,
                        self.W_xz, self.W_hz, self.b_z,

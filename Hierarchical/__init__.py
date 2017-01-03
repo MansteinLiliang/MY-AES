@@ -1,5 +1,4 @@
 from __future__ import absolute_import
-from . import attention
 from . import gru
 from . import lstm
 from . import main_minibatch

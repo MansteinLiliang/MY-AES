@@ -1,11 +1,5 @@
 # pylint: skip-file
-import theano
-import theano.tensor as T
-
-from .. import utils
-init_weights = utils.init_weights
-init_bias = utils.init_bias
-floatX = utils.floatX
+from mylayers.utils import *
 
 
 class LSTMLayer(object):
