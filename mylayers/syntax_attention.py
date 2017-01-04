@@ -1,10 +1,10 @@
 #pylint: skip-file
 import theano.tensor as T
 
-from mylayers import utils
+from mylayers import layer_utils
 
-init_weights = utils.init_weights
-init_bias = utils.init_bias
+init_weights = layer_utils.init_weights
+init_bias = layer_utils.init_bias
 
 
 class SyntaxAttentionLayer(object):
@@ -20,17 +20,17 @@ class SyntaxAttentionLayer(object):
         """
         prefix = "AttentionLayer_"
         layer_id = "_" + layer_id
-        self.num_sents, self.out_size = shape
+        self.batch_docs, self.num_sents, self.out_size = shape
         self.W_a = init_weights([2*self.out_size, self.out_size], prefix+"W_a" + layer_id)
         self.W_u = init_weights([self.out_size, 1], prefix+"W_u"+layer_id)
         self.b = init_bias(self.out_size, prefix+'b_a'+layer_id)
-        syntax_matrix = T.reshape(T.tile(syntax_vector, self.num_sents), shape)
-        concat = T.concatenate([sent_encs, syntax_matrix], axis=1)
+        syntax_matrix = T.reshape(T.tile(syntax_vector, self.num_sents*self.batch_docs), shape)
+        concat = T.concatenate([sent_encs, syntax_matrix], axis=2)
         # TODO why their is a bias ?
         strength = T.dot(T.tanh(T.dot(concat, self.W_a)+self.b), self.W_u).flatten()
         strength_mask = strength*mask
-        a = T.nnet.softmax(strength_mask)
-        c = T.dot(a, sent_encs)
+        a = T.nnet.softmax(strength_mask).reshape((self.batch_docs,self.num_sents))[:,:,None]
+        c = (a*sent_encs).sum(axis=1)
         # self.activation = T.dot(c, mask[...,None]).sum(axis=0)
         self.activation = c
         # self.activation = T.tanh(T.dot(sent_decs, self.W_a3) + T.dot(c, self.W_a4))

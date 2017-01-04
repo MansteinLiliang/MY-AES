@@ -1,5 +1,5 @@
 # pylint: skip-file
-from mylayers.utils import *
+from mylayers.layer_utils import *
 
 
 class LSTMLayer(object):

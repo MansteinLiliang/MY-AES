@@ -3,7 +3,7 @@ from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
 import theano
 from mylayers.encoding_layer import SentEncoderLayer
 from mylayers.syntax_attention import SyntaxAttentionLayer
-from mylayers.utils import init_weights, init_bias
+from mylayers.layer_utils import init_weights, init_bias
 from optimizers import *
 
 
@@ -24,7 +24,8 @@ class RNN(object):
         self.cell = cell
         self.vocab_size = vocab_size
         self.drop_rate = p
-        self.num_sents = num_sents  # num_sents is doc_len or input_tesor.shape[1]
+        self.num_sents = num_sents  # num_sents is doc_len
+        self.batch_docs = T.iscalar('batch_docs')  # input_tesor.shape[1] = batch_docs*num_sents
         self.is_train = T.iscalar('is_train')  # for dropout
         # self.batch_size = T.iscalar('batch_size')  # for mini-batch training
         self.mask = T.matrix("mask")  # dype=None means to use config.floatX
@@ -33,7 +34,7 @@ class RNN(object):
         self.optimizer = optimizer
         self.layers = []
         self.params = []
-        self.y = T.scalar('y')
+        self.y = T.fvector('y')
         # Word_Embdding layer
         embeddings = theano.shared(0.2 * np.random.uniform(
             -0.01, 0.01,(self.vocab_size, self.embedding_size)).astype(theano.config.floatX),name='WEmb')  # add one for PADDING at the end
@@ -50,7 +51,7 @@ class RNN(object):
         # LM layers
         sent_encoder_layer = SentEncoderLayer(rng, self.X, self.embedding_size, self.hidden_size,
                                               self.cell, self.optimizer, self.drop_rate,
-                                              self.is_train, self.num_sents, self.mask)
+                                              self.is_train, self.num_sents*self.batch_docs, self.mask)
         self.layers += sent_encoder_layer.layers
         self.params += sent_encoder_layer.params
 
@@ -59,16 +60,21 @@ class RNN(object):
         # Doc layer
         layer_input = sent_encoder_layer.activation
         sent_X = layer_input[layer_input.shape[0] - 1, :]
-        syntax_att = SyntaxAttentionLayer(str(i+1), (self.num_sents, sent_encoder_layer.hidden_size),
-                                          sent_X, self.sent_mask, self.syntax_vector)
+        #  sent_X shape is: (doc_num * sent_num, dim)
+        doc_sent_X = T.reshape(sent_X,(self.batch_docs, self.num_sents, sent_encoder_layer.hidden_size))
+        # if later layer need rnn------------>doc_sent_X.dimshuffle((1,0,2))
+        syntax_att = SyntaxAttentionLayer(
+            str(i+1),(self.batch_docs, self.num_sents,
+                      sent_encoder_layer.hidden_size),
+            doc_sent_X, self.sent_mask, self.syntax_vector)
 
         self.layers.append(syntax_att)
         self.params += syntax_att.params
 
-        # codes is a vector, sent_encoder_layer.hidden_size
-        codes = syntax_att.activation
+        # codes is a vector, sent_encoder_layer.hidden_size,
+        # codes = syntax_att.activation.reshape((self.batch_docs,syntax_att.out_size))
 
-        self.activation = codes
+        self.activation = syntax_att.activation
 
         # https://github.com/fchollet/keras/pull/9/files
         self.epsilon = 1.0e-15
@@ -81,6 +87,11 @@ class RNN(object):
     #     return T.sum(ce * m) / T.sum(m)
 
     def mean_squared_error(self, X, y):
+        """
+        :param X: if doc = 1, shape=(output_dim,), else shape=(doc_len,output_dim)
+        :param y:
+        :return:
+        """
         W_out = init_weights((self.hidden_size[0],1), 'mse_W')
         b_out = init_bias(1, 'mse_b')
         self.params.append(W_out)
@@ -88,9 +99,9 @@ class RNN(object):
         y_pred = T.dot(X, W_out)+b_out
         print 'compile the mse'
         # self.cost = T.pow(y_pred-y, 2).sum()
-        self.cost = T.pow(y_pred-y,2).mean()
-        clip = theano.gradient.grad_clip(self.cost, 0, 2.0)
-        return clip, y_pred
+        self.cost = T.pow(y_pred-y.reshape((self.batch_docs,1)),2).mean()
+        clip = theano.gradient.grad_clip(self.cost, -1.0, 1.0)
+        return clip, T.clip(y_pred,0.0,1.0)
 
     def define_train_test_funcs(self):
         # pYs = T.reshape(self.activation, (self.batch_size, 1))
@@ -118,8 +129,18 @@ class RNN(object):
         # updates = adadelta(self.params, gparams, lr)
         # updates = adam(self.params, gparams, lr)
 
-        self.train = theano.function(inputs=[self.idxs, self.mask, lr, self.y],
+        self.train = theano.function(inputs=[self.idxs, self.mask, lr, self.y, self.batch_docs],
                                      givens={self.is_train: np.cast['int32'](1)},
-                                     outputs=[cost, self.cost, pred],
-                                     updates=updates)
+                                     outputs=[self.cost, pred],
+                                     updates=updates,
+                                     on_unused_input='ignore',
+                                     allow_input_downcast=True
+                                     )
 
+        self.predict = theano.function(
+            inputs=[self.idxs, self.mask, self.y, self.batch_docs],
+            givens={self.is_train: np.cast['int32'](1)},
+            outputs=[self.cost, pred],
+            on_unused_input='ignore',
+            allow_input_downcast=True
+        )

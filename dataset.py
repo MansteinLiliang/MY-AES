@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import random
 import codecs
 import sys
@@ -46,6 +47,12 @@ def get_score_range(prompt_id):
 
 
 def get_model_friendly_scores(scores_array, prompt_id_array):
+    '''
+
+    :param scores_array:
+    :param prompt_id_array: int or np.ndarray
+    :return:
+    '''
     arg_type = type(prompt_id_array)
     assert arg_type in {int, np.ndarray}
     if arg_type is int:
@@ -95,7 +102,7 @@ def load_vocab(vocab_path):
 def create_vocab(file_path, prompt_id, tokenize_text, to_lower, maxlen=0, vocab_size=0):
     logger.info('Creating vocabulary from: ' + file_path)
     if maxlen > 0:
-        logger.info('  Removing sequences with more than ' + str(maxlen) + ' words')
+        logger.info('  Removing sequences with more than ' + maxlen + ' words')
     total_words, unique_words = 0, 0
     word_freqs = {}
     with codecs.open(file_path, mode='r', encoding='UTF8') as input_file:
@@ -227,10 +234,36 @@ def read_dataset(file_path, prompt_id, vocab, to_lower, score_index=6, char_leve
     return data_x, mask_x, data_y, sent_len
 
 
-def batch_generator(X, masks, y):
+def train_batch_generator(X, masks, y, doc_num=1):
+    """
+    :param X:
+    :param masks:
+    :param y:
+    :param doc_num:if it's 1, the tensor_shape=(sent_len, sent_num).Or it's shape=(sent_len, sent_num*doc_len)
+    :return: X_new, masks_new, y_new
+    """
+    epoch = 1
     while(True):
-        for (X_, mask,y_) in zip(*shuffle(X, masks, y)):
-            yield X_, mask, y_
+        X_new, masks_new, y_new = shuffle(X, masks, y)
+        print "epoch: "+str(epoch)+" begin......"
+        for i in xrange(doc_num,len(X_new),doc_num):
+            yield epoch, np.hstack(X_new[i-doc_num:i]), np.hstack(masks_new[i-doc_num:i]), np.hstack(y_new[i-doc_num:i])
+        epoch+=1
+
+
+def dev_test_batch_generator(X, masks, y, doc_num=1):
+    """
+    按照doc_num的长度来生成batch，如果最后不足batch则是动态variable的长度
+    :param X:
+    :param masks:
+    :param y:
+    :param doc_num:
+    :return:
+
+    """
+    for i in xrange(0,len(X),doc_num):
+        #   I utilize the indexing trick, out of range index will automated detected
+        yield np.hstack(X[i:i+doc_num]), np.hstack(masks[i:i+doc_num]), np.hstack(y[i:i+doc_num])
 
 
 def get_data(paths, prompt_id, vocab_size, doc_len, sent_len, tokenize_text=True, to_lower=True, sort_by_len=False,
@@ -254,5 +287,5 @@ def get_data(paths, prompt_id, vocab_size, doc_len, sent_len, tokenize_text=True
     dev_x, dev_masks, dev_y, dev_maxlen = read_dataset(dev_path, prompt_id, vocab, to_lower, doc_len=doc_len, sent_len=sent_len)
     test_x, test_masks, test_y, test_maxlen = read_dataset(test_path, prompt_id, vocab, to_lower, doc_len=doc_len, sent_len=sent_len)
 
-    return ((train_x, train_masks, train_y), (dev_x, dev_masks, dev_y),
-            (test_x, test_masks, test_y), vocab, len(vocab))
+    return ((train_x, train_masks, np.array(train_y)), (dev_x, dev_masks, np.array(dev_y)),
+            (test_x, test_masks, np.array(test_y)), vocab, len(vocab))

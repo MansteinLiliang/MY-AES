@@ -8,14 +8,27 @@ from lstm_layer import LSTMLayer
 
 class SentEncoderLayer(object):
     def __init__(self, rng, X, in_size, hidden_size,
-                 cell, optimizer, p, is_train, batch_size, mask):
+                 cell, optimizer, p, is_train, total_sents, mask):
+        """
+        Support for dynamic batch, which is specified by num_sens*batch_docs
+        :param rng:
+        :param X:
+        :param in_size:
+        :param hidden_size:
+        :param cell:
+        :param optimizer:
+        :param p:
+        :param is_train:
+        :param batch_size:
+        :param mask:
+        """
         self.X = X
-        self.in_size = in_size
-        self.hidden_size_list = hidden_size
+        self.in_size = in_size  # word_embedding size
+        self.hidden_size_list = hidden_size # sent_embedding size
         self.cell = cell
         self.drop_rate = p
         self.is_train = is_train
-        self.batch_size = batch_size
+        self.total_sents = total_sents  # T.scalar
         self.mask = mask
         self.rng = rng
         self.num_hds = len(hidden_size)
@@ -34,12 +47,12 @@ class SentEncoderLayer(object):
                 layer_input = self.layers[i - 1].activation
                 shape = (self.hidden_size_list[i - 1], self.hidden_size_list[i])
 
-            if self.cell == "gru":
-                hidden_layer = GRULayer(self.rng, str(i), shape, layer_input,
-                                        self.mask, self.is_train, self.batch_size, self.drop_rate)
-            elif self.cell == "lstm":
-                hidden_layer = LSTMLayer(self.rng, str(i), shape, layer_input,
-                                         self.mask, self.is_train, self.batch_size, self.drop_rate)
+            # if self.cell == "gru":
+            hidden_layer = GRULayer(self.rng, str(i), layer_input, shape,
+                                    self.mask, self.total_sents, self.is_train, self.drop_rate)
+            # elif self.cell == "lstm":
+            #     hidden_layer = LSTMLayer(self.rng, str(i), shape, layer_input,
+            #                              self.mask, self.is_train, self.batch_size, self.drop_rate)
 
             self.layers.append(hidden_layer)
             self.params += hidden_layer.params

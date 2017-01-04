@@ -1,9 +1,9 @@
 # pylint: skip-file
-from mylayers.utils import *
+from mylayers.layer_utils import *
 
 
 class GRULayer(object):
-    def __init__(self, rng, layer_id, shape, X, mask, is_train=1, batch_size=1, p=0.5):
+    def __init__(self, rng, layer_id, X, shape, mask, total_sents, is_train=1, p=0.5):
         prefix = "GRU_"
         layer_id = "_" + layer_id
         self.in_size, self.out_size = shape
@@ -24,8 +24,8 @@ class GRULayer(object):
         self.M = mask
 
         def _active_mask(x, m, pre_h):
-            x = T.reshape(x, (batch_size, self.in_size))
-            pre_h = T.reshape(pre_h, (batch_size, self.out_size))
+            x = T.reshape(x, (-1, self.in_size))
+            pre_h = T.reshape(pre_h, (-1, self.out_size))
 
             r = T.nnet.sigmoid(T.dot(x, self.W_xr) + T.dot(pre_h, self.W_hr) + self.b_r)
             z = T.nnet.sigmoid(T.dot(x, self.W_xz) + T.dot(pre_h, self.W_hz) + self.b_z)
@@ -38,9 +38,9 @@ class GRULayer(object):
             return h
 
         h, updates = theano.scan(_active_mask, sequences=[self.X, self.M],
-                                 outputs_info=[T.alloc(floatX(0.), batch_size, self.out_size)])
+                                 outputs_info=[T.alloc(floatX(0.), total_sents, self.out_size)])
         # dic to matrix
-        h = T.reshape(h, (self.X.shape[0], batch_size, self.out_size))
+        h = T.reshape(h, (self.X.shape[0], total_sents, self.out_size))
 
         # TODO their is no dropout, for the random_stream not figure out
         # dropout
