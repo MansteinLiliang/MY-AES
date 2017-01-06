@@ -50,6 +50,9 @@ def rmsprop(params, gparams, learning_rate = 0.001, rho = 0.9, epsilon = 1e-6):
         acc = theano.shared(np.zeros(v.shape, dtype = v.dtype), broadcastable = p.broadcastable)
         acc_new = rho * acc + (1 - rho) * g ** 2
         updates.append((acc, acc_new))
+        # if p.name == 'WEmb':
+        #     updates.append((p, p - learning_rate * g / T.sqrt(acc_new + epsilon)))
+        # else:
         updates.append((p, p - learning_rate * g / T.sqrt(acc_new + epsilon)))
     return updates
 

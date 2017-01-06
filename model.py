@@ -8,7 +8,7 @@ from optimizers import *
 
 
 class RNN(object):
-    def __init__(self, vocab_size, embedding_size, hidden_size,
+    def __init__(self, U, vocab_size, embedding_size, hidden_size,
                  cell="gru", optimizer="rmsprop", p=0.5, num_sents=1):
         '''
         :param in_size: word-embedding dimension
@@ -35,12 +35,13 @@ class RNN(object):
         self.layers = []
         self.params = []
         self.y = T.fvector('y')
-        # Word_Embdding layer
-        embeddings = theano.shared(0.2 * np.random.uniform(
-            -0.01, 0.01,(self.vocab_size, self.embedding_size)).astype(theano.config.floatX),name='WEmb')  # add one for PADDING at the end
+        # TODO Word Embdding matrix initialization
+        embeddings = theano.shared(value=U, name='WEmb')
+        self.sent_X = embeddings
+        # embeddings = theano.shared(0.2 * np.random.uniform(
+        #     -0.01, 0.01,(self.vocab_size, self.embedding_size)).astype(theano.config.floatX), name='WEmb')  # add one for PADDING at the end
         self.params.append(embeddings)
         self.idxs = T.imatrix()
-        # self.X = embeddings[self.idxs].reshape((self.idxs.shape[0], self.idxs.shape[1], self.embedding_size))
         self.X = embeddings[self.idxs]
         self.define_layers()
         self.define_train_test_funcs()
@@ -60,8 +61,9 @@ class RNN(object):
         # Doc layer
         layer_input = sent_encoder_layer.activation
         sent_X = layer_input[layer_input.shape[0] - 1, :]
+
         #  sent_X shape is: (doc_num * sent_num, dim)
-        doc_sent_X = T.reshape(sent_X,(self.batch_docs, self.num_sents, sent_encoder_layer.hidden_size))
+        doc_sent_X = T.reshape(sent_X, (self.batch_docs, self.num_sents, sent_encoder_layer.hidden_size))
         # if later layer need rnn------------>doc_sent_X.dimshuffle((1,0,2))
         syntax_att = SyntaxAttentionLayer(
             str(i+1),(self.batch_docs, self.num_sents,
@@ -93,15 +95,16 @@ class RNN(object):
         :return:
         """
         W_out = init_weights((self.hidden_size[0],1), 'mse_W')
-        b_out = init_bias(1, 'mse_b')
+        b_out = init_bias(1, 'mse_b', value=0.7)
         self.params.append(W_out)
         self.params.append(b_out)
         y_pred = T.dot(X, W_out)+b_out
         print 'compile the mse'
         # self.cost = T.pow(y_pred-y, 2).sum()
-        self.cost = T.pow(y_pred-y.reshape((self.batch_docs,1)),2).mean()
-        clip = theano.gradient.grad_clip(self.cost, -1.0, 1.0)
-        return clip, T.clip(y_pred,0.0,1.0)
+        self.cost = T.mean(T.square(y_pred.flatten() - y), axis=-1)
+        # self.cost = T.pow(y_pred-y.reshape((self.batch_docs, 1)), 2).mean()
+        clip = theano.gradient.grad_clip(self.cost, -10.0, 10.0)
+        return clip, T.clip(y_pred, 0.0, 1.0)
 
     def define_train_test_funcs(self):
         # pYs = T.reshape(self.activation, (self.batch_size, 1))
@@ -113,7 +116,10 @@ class RNN(object):
         cost, pred = self.mean_squared_error(self.activation, self.y)
 
         gparams = []
+
         for param in self.params:
+            # if param.name == 'WEmb':
+            #     continue
             gparam = T.grad(cost, param)
             gparams.append(gparam)
 
@@ -131,7 +137,7 @@ class RNN(object):
 
         self.train = theano.function(inputs=[self.idxs, self.mask, lr, self.y, self.batch_docs],
                                      givens={self.is_train: np.cast['int32'](1)},
-                                     outputs=[self.cost, pred],
+                                     outputs=[self.cost, pred, self.sent_X],
                                      updates=updates,
                                      on_unused_input='ignore',
                                      allow_input_downcast=True

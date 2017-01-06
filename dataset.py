@@ -8,6 +8,8 @@ import re
 import numpy as np
 import pickle as pk
 from keras.preprocessing import sequence
+import cPickle as pkl
+import os
 from sklearn.utils import shuffle
 logger = logging.getLogger(__name__)
 num_regex = re.compile('^[+-]?[0-9]+\.?[0-9]*$')
@@ -30,16 +32,24 @@ def get_ref_dtype():
     return ref_scores_dtype
 
 
+# def tokenize(string):
+#     tokens = nltk.word_tokenize(string)
+#     new_tokens = []
+#     for index, token in enumerate(tokens):
+#         if token == '@' and (index + 1) < len(tokens):
+#             tokens[index + 1] = '@' + re.sub('[0-9]+.*', '', tokens[index + 1])
+#             # tokens.pop(index)
+#         else:
+#             new_tokens.append(token)
+#     return new_tokens
+
 def tokenize(string):
     tokens = nltk.word_tokenize(string)
-    new_tokens = []
     for index, token in enumerate(tokens):
         if token == '@' and (index + 1) < len(tokens):
             tokens[index + 1] = '@' + re.sub('[0-9]+.*', '', tokens[index + 1])
-            # tokens.pop(index)
-        else:
-            new_tokens.append(token)
-    return new_tokens
+            tokens.pop(index)
+    return tokens
 
 
 def get_score_range(prompt_id):
@@ -100,12 +110,15 @@ def load_vocab(vocab_path):
 
 
 def create_vocab(file_path, prompt_id, tokenize_text, to_lower, maxlen=0, vocab_size=0):
+    # assert os.path.isfile('./data/total_vocab.pk')
+    # total_vocab = pkl.load(open('./data/total_vocab.pk'))
+
     logger.info('Creating vocabulary from: ' + file_path)
     if maxlen > 0:
-        logger.info('  Removing sequences with more than ' + maxlen + ' words')
+        logger.info('  Removing sequences with more than ' + str(maxlen) + ' words')
     total_words, unique_words = 0, 0
     word_freqs = {}
-    with codecs.open(file_path, mode='r', encoding='UTF8') as input_file:
+    with codecs.open(file_path, mode='r', encoding='UTF8', errors='ignore') as input_file:
         input_file.next()
         for line in input_file:
             tokens = line.strip().split('\t')
@@ -132,18 +145,28 @@ def create_vocab(file_path, prompt_id, tokenize_text, to_lower, maxlen=0, vocab_
     logger.info('  %i total words, %i unique words' % (total_words, unique_words))
     import operator
     sorted_word_freqs = sorted(word_freqs.items(), key=operator.itemgetter(1), reverse=True)
+    # ''' Vocab is too small no need
     if vocab_size <= 0:
         # Choose vocab size automatically by removing all singletons
         vocab_size = 0
         for word, freq in sorted_word_freqs:
             if freq > 1:
                 vocab_size += 1
+    # '''
     vocab = {'<pad>': 0, '<unk>': 1, '<num>': 2}
     vcb_len = len(vocab)
     index = vcb_len
+
     for word, _ in sorted_word_freqs[:vocab_size - vcb_len]:
         vocab[word] = index
         index += 1
+
+    logger.info('  %i vocab size' % len(vocab))
+    ''' Vocab is too small no need
+    for word, _ in sorted_word_freqs[:vocab_size - vcb_len]:
+        vocab[word] = index
+        index += 1
+    '''
     return vocab
 
 
@@ -175,9 +198,15 @@ def get_sents(string, vocab, doc_len=50, sent_len=50):
     for i, sent in enumerate(sents):
         indices = []
         sent_mask = []
-        if i>= doc_len:
+        if i >= doc_len:
             break
+        # punctuation will also be split
         tokens = nltk.word_tokenize(sent)
+        for index, token in enumerate(tokens):
+            if token == '@' and (index + 1) < len(tokens):
+                tokens[index + 1] = '@' + re.sub('[0-9]+.*', '', tokens[index + 1])
+                tokens.pop(index)
+
         for word in tokens:
             sent_mask.append(1)
             if is_number(word):
@@ -185,14 +214,16 @@ def get_sents(string, vocab, doc_len=50, sent_len=50):
                 num_hit += 1
             elif word in vocab:
                 indices.append(vocab[word])
+            # elif word in set([',','.','?','\'','"','']):
+            #     continue
             else:
                 indices.append(vocab['<unk>'])
                 unk_hit += 1
             total += 1
         # If maxlen is provided, any sequence longer
-        doc_matrix[i,:], mask[i,:]  = sequence.pad_sequences([indices,sent_mask], sent_len, padding='post')
+        doc_matrix[i, :], mask[i, :] = sequence.pad_sequences([indices,sent_mask], sent_len, padding='post')
     # transpose the matrix set it shape=(sent , doc)
-    return doc_matrix.transpose((1,0)), mask.transpose((1,0)), num_hit, unk_hit, total
+    return doc_matrix.transpose((1, 0)), mask.transpose((1, 0)), num_hit, unk_hit, total
 
 
 def read_dataset(file_path, prompt_id, vocab, to_lower, score_index=6, char_level=False, doc_len=100, sent_len=50):
@@ -206,7 +237,8 @@ def read_dataset(file_path, prompt_id, vocab, to_lower, score_index=6, char_leve
     :return: data_x, mask_x, data_y, prompt_ids, maxlen_x
     '''
     logger.info('Reading dataset from: ' + file_path)
-    logger.info('Removing sequences with more than ' + str(doc_len*sent_len) + ' words')
+
+    logger.info('Removing sequences with more than ' + str(sent_len) + ' words')
     data_x, data_y, mask_x, prompt_ids = [], [], [], []
     num_hit, unk_hit, total = 0., 0., 0.
     with codecs.open(file_path, mode='r', encoding='UTF8') as input_file:
@@ -230,7 +262,6 @@ def read_dataset(file_path, prompt_id, vocab, to_lower, score_index=6, char_leve
                 data_x.append(indices)
                 data_y.append(score)
     logger.info('  <num> hit rate: %.2f%%, <unk> hit rate: %.2f%%' % (100 * num_hit / total, 100 * unk_hit / total))
-    logger.info('max_sent_len of prompt%d is %d' % (prompt_id, sent_len))
     return data_x, mask_x, data_y, sent_len
 
 
@@ -243,12 +274,22 @@ def train_batch_generator(X, masks, y, doc_num=1):
     :return: X_new, masks_new, y_new
     """
     epoch = 1
-    while(True):
+    mask_copy = [masks[0].copy() for i in range(doc_num)]
+    y_copy = [y[0].copy() for i in range(doc_num)]
+    while True:
         X_new, masks_new, y_new = shuffle(X, masks, y)
+        ''' Used to train just a number of data
+        X_copy = [X_new[0].copy() for i in range(doc_num)]
+        mask_copy = [masks_new[0].copy() for i in range(doc_num)]
+        y_copy = [y_new[0].copy() for i in range(doc_num)]
+        # yield epoch, np.hstack(X_copy), np.hstack(mask_copy), np.hstack(y_copy)
+        '''
         print "epoch: "+str(epoch)+" begin......"
         for i in xrange(doc_num,len(X_new),doc_num):
-            yield epoch, np.hstack(X_new[i-doc_num:i]), np.hstack(masks_new[i-doc_num:i]), np.hstack(y_new[i-doc_num:i])
-        epoch+=1
+
+            # yield epoch, np.hstack(X_new[i-doc_num:i]), np.hstack(masks_new[i-doc_num:i]), np.hstack(y_new[i-doc_num:i])
+            yield epoch, np.hstack(X_new[i-doc_num:i]), np.ones(shape=(50, 1600), dtype='int32'), np.hstack(y_new[i-doc_num:i])
+        epoch += 1
 
 
 def dev_test_batch_generator(X, masks, y, doc_num=1):
@@ -261,7 +302,7 @@ def dev_test_batch_generator(X, masks, y, doc_num=1):
     :return:
 
     """
-    for i in xrange(0,len(X),doc_num):
+    for i in xrange(0, len(X), doc_num):
         #   I utilize the indexing trick, out of range index will automated detected
         yield np.hstack(X[i:i+doc_num]), np.hstack(masks[i:i+doc_num]), np.hstack(y[i:i+doc_num])
 

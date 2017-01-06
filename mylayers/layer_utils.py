@@ -6,6 +6,8 @@ import cPickle as pickle
 
 # set use gpu programatically
 import theano.sandbox.cuda
+
+
 def use_gpu(gpu_id):
     if gpu_id > -1:
         theano.sandbox.cuda.use("gpu" + str(gpu_id))
@@ -19,8 +21,8 @@ def init_weights(shape, name):
 def init_gradws(shape, name):
     return theano.shared(floatX(np.zeros(shape)), name)
 
-def init_bias(size, name):
-    return theano.shared(floatX(np.zeros((size,))), name)
+def init_bias(size, name, value=0.0):
+    return theano.shared(floatX(value*np.ones((size,))), name)
 
 def save_model(f, model):
     ps = {}

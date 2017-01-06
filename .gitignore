@@ -1,3 +1,5 @@
 *.pyc
 /data/*
-/model/*
+/.idea/*
+/.ipynb_checkpoints/*
+/out_dir/*
