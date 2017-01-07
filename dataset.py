@@ -274,8 +274,8 @@ def train_batch_generator(X, masks, y, doc_num=1):
     :return: X_new, masks_new, y_new
     """
     epoch = 1
-    mask_copy = [masks[0].copy() for i in range(doc_num)]
-    y_copy = [y[0].copy() for i in range(doc_num)]
+    # mask_copy = [masks[0].copy() for i in range(doc_num)]
+    # y_copy = [y[0].copy() for i in range(doc_num)]
     while True:
         X_new, masks_new, y_new = shuffle(X, masks, y)
         ''' Used to train just a number of data
@@ -287,8 +287,8 @@ def train_batch_generator(X, masks, y, doc_num=1):
         print "epoch: "+str(epoch)+" begin......"
         for i in xrange(doc_num,len(X_new),doc_num):
 
-            # yield epoch, np.hstack(X_new[i-doc_num:i]), np.hstack(masks_new[i-doc_num:i]), np.hstack(y_new[i-doc_num:i])
-            yield epoch, np.hstack(X_new[i-doc_num:i]), np.ones(shape=(50, 1600), dtype='int32'), np.hstack(y_new[i-doc_num:i])
+            yield epoch, np.hstack(X_new[i-doc_num:i]), np.hstack(masks_new[i-doc_num:i]), np.hstack(y_new[i-doc_num:i])
+            # yield epoch, np.hstack(X_new[i-doc_num:i]), np.ones(shape=(50, 1600), dtype='int32'), np.hstack(y_new[i-doc_num:i])
         epoch += 1
 
 

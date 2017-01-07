@@ -7,10 +7,11 @@ from lstm_layer import LSTMLayer
 
 
 class SentEncoderLayer(object):
-    def __init__(self, rng, X, in_size, hidden_size,
-                 cell, optimizer, p, is_train, total_sents, mask):
+    def __init__(self, layer_name, X, in_size, hidden_size, cell, optimizer, p, is_train, total_sents, mask, rng):
+        # TODO sent representation can be pooling the over whole sentence
         """
         Support for dynamic batch, which is specified by num_sens*batch_docs
+        :param layer_name:
         :param rng:
         :param X:
         :param in_size:
@@ -21,7 +22,9 @@ class SentEncoderLayer(object):
         :param is_train:
         :param batch_size:
         :param mask:
+        :return Tensor: shape is (sent_len, sent_num, embedding)
         """
+
         self.X = X
         self.in_size = in_size  # word_embedding size
         self.hidden_size_list = hidden_size # sent_embedding size
@@ -32,7 +35,7 @@ class SentEncoderLayer(object):
         self.mask = mask
         self.rng = rng
         self.num_hds = len(hidden_size)
-
+        self.layer_name = layer_name
         self.define_layers()
 
     def define_layers(self):
@@ -63,22 +66,22 @@ class SentEncoderLayer(object):
 
 
 class DocEncoderLayer(object):
-    def __init__(self, cell, rng, layer_id, shape, X, mask, is_train=1, batch_size=1, p=0.5):
+    def __init__(self, layer_name, rng, X, in_size, hidden_size,
+                 cell, optimizer, p, is_train, total_docs, sent_mask):
         """
-        :param cell:
         :param rng:
-        :param layer_id:
-        :param shape:(sent_max_len,batch_size, hiddendim_of_sent_rnn)
-        :param X: input X tensor from sentence rnn
-        :param mask: sentence mask, shape=(max_sent_len,)
+        :param X: shape(sent_nums, doc_nums, in_size)
+        :param in_size:
+        :param hidden_size:
+        :param cell:
+        :param optimizer:
+        :param p:
         :param is_train:
-        :param batch_size:
-        :param p: dropout prob
-        :return Tensor: (sent_max_len, hidden_dim)
+        :param total_docs:
+        :param sent_mask: (sent_nums, doc_nums)
+        :return Tensor: shape is (sent_num, doc_num, embedding)
         """
-        prefix = "SentEncoder_"
-        self.in_size, self.out_size = shape
-
+        prefix = layer_name + "_"
         '''
         def code(j):
             i = mask[:, j].sum() - 1
@@ -87,16 +90,14 @@ class DocEncoderLayer(object):
             return sent_x
         sent_X, updates = theano.scan(lambda i: code(i), sequences=[T.arange(mask.shape[1])])
         '''
-        sent_X = T.reshape(X[X.shape[0] - 1, :], (batch_size, self.in_size))
-        # TODO sent representation can be pooling the over whole sentence
-
-        mask = T.reshape(T.ones_like(sent_X)[:, 0], (batch_size, 1))
-
+        self._in_size = in_size
+        self.hidden_zie = hidden_size
         if cell == "gru":
-            self.encoder = GRULayer(rng, prefix + layer_id, shape, sent_X, mask, is_train, 1, p)
-        elif cell == "lstm":
-            self.encoder = LSTMLayer(rng, prefix + layer_id, shape, sent_X, mask, is_train, 1, p)
+            self.encoder = GRULayer(rng, prefix, X, (in_size, hidden_size),
+                     sent_mask, total_docs, is_train, p)
+        # elif cell == "lstm":
+        #     self.encoder = LSTMLayer(rng, prefix + layer_id, shape, sent_X, mask, is_train, 1, p)
 
-        self.activation = self.encoder.activation[self.encoder.activation.shape[0] - 1, :]
-        self.sent_encs = sent_X
+        self.activation = self.encoder.activation
+
         self.params = self.encoder.params

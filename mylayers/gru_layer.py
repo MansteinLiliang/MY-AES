@@ -3,22 +3,22 @@ from mylayers.layer_utils import *
 
 
 class GRULayer(object):
-    def __init__(self, rng, layer_id, X, shape, mask, total_sents, is_train=1, p=0.5):
-        prefix = "GRU_"
-        layer_id = "_" + layer_id
+    def __init__(self, rng, layer_prefix, X, shape, mask, total_sents, is_train=1, p=0.5):
+        prefix = "_GRU_"
+        layer_name = layer_prefix + prefix
         self.in_size, self.out_size = shape
 
-        self.W_xr = init_weights((self.in_size, self.out_size), prefix + "W_xr" + layer_id)
-        self.W_hr = init_weights((self.out_size, self.out_size), prefix + "W_hr" + layer_id)
-        self.b_r = init_bias(self.out_size, prefix + "b_r" + layer_id)
+        self.W_xr = init_weights((self.in_size, self.out_size), prefix + "W_xr" + layer_name)
+        self.W_hr = init_weights((self.out_size, self.out_size), prefix + "W_hr" + layer_name)
+        self.b_r = init_bias(self.out_size, prefix + "b_r" + layer_name)
 
-        self.W_xz = init_weights((self.in_size, self.out_size), prefix + "W_xz" + layer_id)
-        self.W_hz = init_weights((self.out_size, self.out_size), prefix + "W_hz" + layer_id)
-        self.b_z = init_bias(self.out_size, prefix + "b_z" + layer_id)
+        self.W_xz = init_weights((self.in_size, self.out_size), prefix + "W_xz" + layer_name)
+        self.W_hz = init_weights((self.out_size, self.out_size), prefix + "W_hz" + layer_name)
+        self.b_z = init_bias(self.out_size, prefix + "b_z" + layer_name)
 
-        self.W_xh = init_weights((self.in_size, self.out_size), prefix + "W_xh" + layer_id)
-        self.W_hh = init_weights((self.out_size, self.out_size), prefix + "W_hh" + layer_id)
-        self.b_h = init_bias(self.out_size, prefix + "b_h" + layer_id)
+        self.W_xh = init_weights((self.in_size, self.out_size), prefix + "W_xh" + layer_name)
+        self.W_hh = init_weights((self.out_size, self.out_size), prefix + "W_hh" + layer_name)
+        self.b_h = init_bias(self.out_size, prefix + "b_h" + layer_name)
 
         self.X = X
         self.M = mask

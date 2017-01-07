@@ -4,4 +4,5 @@ from . import gru_layer
 from . import lstm_layer
 from . import gating_layer
 from . import encoding_layer
-from . import syntax_attention
+from . import attention
+from . import layer_utils

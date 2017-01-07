@@ -47,8 +47,8 @@ class RNN(object):
 
         # encoder layer
         layer_input = word_encoder_layer.activation
-        encoder_layer = SentEncoderLayer(self.cell, rng, str(i + 1), (word_encoder_layer.hidden_size, word_encoder_layer.hidden_size),
-                                         layer_input, self.mask, self.is_train, self.batch_size, self.drop_rate)
+        encoder_layer = SentEncoderLayer(, rng, str(i + 1), (word_encoder_layer.hidden_size,
+                                                             word_encoder_layer.hidden_size), layer_input, self.mask, self.is_train, self.batch_size, self.drop_rate, self.cell
         self.layers.append(encoder_layer)
         self.params += encoder_layer.params
         

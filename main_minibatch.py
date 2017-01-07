@@ -55,12 +55,20 @@ print "#word size = ", vocab_size
 
 print "compiling..."
 # TODO We should try different word-embedding
-emb_path = "./data/En_vectors.txt"
-emb_reader = W2VEmbReader(emb_path, emb_dim=word_embedding_size)
+# word-embedding1
+# emb_path = "./data/En_vectors.txt"
+# emb_reader = W2VEmbReader(emb_path, emb_dim=word_embedding_size)
+# U = np.zeros(shape=(vocab_size, word_embedding_size), dtype=theano.config.floatX)
+# U = emb_reader.get_emb_matrix_given_vocab(vocab, U)
+
+# word-embedding2
 U = floatX(np.random.uniform(-0.05, 0.05, size=(vocab_size, word_embedding_size)))
 U[0] = np.zeros((word_embedding_size,), dtype=theano.config.floatX)
+
+# word-embedding3: zero-embeddings
 # U = np.zeros(shape=(vocab_size, word_embedding_size), dtype=theano.config.floatX)
-U = emb_reader.get_emb_matrix_given_vocab(vocab, U)
+
+
 '''Loading google word2vec
 # word_vectors = pkl.load(open('./data/word_vectors.pk.'))
 # for word in vocab:d
@@ -78,8 +86,7 @@ start = time.time()
 evl_epoch = 0
 
 
-
-for i in xrange(2000):
+for i in xrange(300):
     epoch, X, mask, y = train_batch.next()
     if (i+1) % 10 == 0:
         evl_epoch += 1
